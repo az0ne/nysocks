@@ -72,7 +72,6 @@ function initBeat(conn, next) {
   const resetTimeout = () => {
     clearTimeout(timeoutTimerID)
     timeoutTimerID = setTimeout(() => {
-      // console.log('timeout')
       clearInterval(intervalID)
       next()
     }, TOTAL_TIMEOUT)
@@ -186,8 +185,11 @@ export function initClientConns(options, client, ipAddr) {
   return conns
 }
 
+let i = 0
+
 // TODO: throw when failed to connect
 export function createClient(_options) {
+  i += 1
   const options = Object.assign({}, DEFAULT_OPTIONS, _options)
   const { serverAddr, serverPort } = options
   const client = new EventEmitter()
@@ -222,6 +224,7 @@ export function createClient(_options) {
     .then(([conn, ports]) => {
       // TODO:
       initBeat(conn, () => {
+        // console.log('emit_close', i)
         client.emit('close')
       })
 

@@ -1,6 +1,6 @@
 {
   "name": "nysocks",
-  "version": "1.1.1",
+  "version": "1.2.4",
   "description": "Nysocks binds kcp and libuv to provide a tunnel for nodejs.",
   "main": "node/lib/index.js",
   "bin": {
@@ -34,12 +34,13 @@
   },
   "dependencies": {
     "chalk": "^2.3.0",
+    "encryptsocks": "^1.4.4",
     "fecha": "^2.3.1",
     "ip": "^1.1.5",
     "nan": "^2.7.0",
     "pac-server": "^1.0.1",
     "pm2": "^2.8.0",
-    "socksv5-kcpuv": "^0.0.6",
+    "socksv5-kcpuv": "^0.0.9",
     "winston": "^3.0.0-rc1",
     "yargs": "^10.0.3"
   },

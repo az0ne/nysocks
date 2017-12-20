@@ -28,7 +28,7 @@ function camelize(key) {
   return nextKey
 }
 
-function getConfigFile(configFile) {
+function getFile(configFile) {
   if (!configFile) {
     return null
   }
@@ -58,6 +58,14 @@ function getMode(mode) {
   return MODES[mode]
 }
 
+function checkAuthList(config) {
+  const { authList } = config.SOCKS
+  if (authList !== null && authList !== undefined
+      && !(authList instanceof Object && !Array.isArray(authList))) {
+    throw new Error('expect auth list to be like {"name_a": "password_a", "name_b": "password_b"}')
+  }
+}
+
 function checkRequiredConfig(config) {
   if (config.log_memory) {
     logMemory()
@@ -68,16 +76,39 @@ function checkRequiredConfig(config) {
   }
 }
 
+function checkClientArgs(config) {
+  const { clientProtocol, SS } = config
+  const { password } = SS
+
+  if (clientProtocol !== 'SOCKS' && clientProtocol !== 'SS') {
+    throw new Error('expect client_protocol to be "SOCKS" or "SS"')
+  }
+
+  if (clientProtocol === 'SS' && !password) {
+    throw new Error('expect ss_password to be specified')
+  }
+}
+
+function safelyAssign(obj, key, value) {
+  if (value) {
+    obj[key] = value
+  }
+}
+
 function parseConfig(argv) {
-  const configJsonFromFile = getConfigFile(formatConfig(argv.config)) || {}
+  const configJsonFromFile = getFile(formatConfig(argv.config)) || {}
+  // const authList = getFile(formatConfig(argv.socks_auth)) || null
   const modeKcpOptions = getMode(argv.mode ? argv.mode : configJsonFromFile.mode)
   let config = {
     pac: DEFAULT_PAC_SERVER,
     SOCKS: DEFAULT_SOCKS_CONFIG,
+    SS: {},
+    clientProtocol: 'SOCKS',
   }
-  config.kcp = {}
-  config.kcp = Object.assign(config.kcp, modeKcpOptions)
+
   config = Object.assign(config, configJsonFromFile)
+  config.kcp = config.kcp || {}
+  config.kcp = Object.assign(config.kcp, modeKcpOptions)
 
   Object.keys(argv).forEach(key => {
     if (argv[key]) {
@@ -94,6 +125,16 @@ function parseConfig(argv) {
       config[camelize(key)] = config[key]
     }
   })
+
+  // SOCKS
+  // config.SOCKS.authList = authList
+  config.SOCKS.authList = null
+  safelyAssign(config.SOCKS, 'port', config.socksPort)
+
+  // SS
+  safelyAssign(config.SOCKS, 'password', config.ssPassword)
+  safelyAssign(config.SOCKS, 'method', config.ssMethod)
+  safelyAssign(config.SOCKS, 'serverPort', config.ssPort)
 
   return config
 }
@@ -114,6 +155,11 @@ export default function main() {
   // eslint-disable-next-line
   yargs
     .detectLocale(false)
+    .version()
+    .option('config', {
+      alias: 'c',
+      describe: 'The path of a json file that describe your configuration.',
+    })
     .option('daemon', {
       alias: 'd',
       describe: 'Run with a daemon(pm2): start, stop, restart.',
@@ -122,17 +168,13 @@ export default function main() {
       alias: 'm',
       describe: 'Like kcptun: normal, fast, fast2, fast3.',
     })
-    .option('config', {
-      alias: 'c',
-      describe: 'The path of a json file that describe your configuration.',
-    })
     .option('password', {
       alias: 'k',
       describe: 'The passowrd/key for the encryption of transmissio.',
     })
     // TODO:
     .option('socket_amount', {
-      describe: 'The amount of connections to be created for each client (default: 10.)',
+      describe: 'The amount of connections to be created for each client (default: 10)',
     })
     .option('server_addr', {
       alias: 'a',
@@ -142,6 +184,28 @@ export default function main() {
       alias: 'p',
       describe: 'The port of your server.',
     })
+    .option('client_protocol', {
+      alias: 'cp',
+      describe: 'The protocol that will be used by clients: SS, SOCKS (default: SOCKS)',
+    })
+    // SOCKS options
+    // .option('socks_auth', {
+    //   describe: 'Specify a list of username/password pairs for the socks5 authentication.',
+    // })
+    .option('socks_port', {
+      describe: 'Specify the local port for SOCKS service (default: 1080)',
+    })
+    // SS options
+    .option('ss_port', {
+      describe: 'Specify the local port for ssServer service (default: 8083)',
+    })
+    .option('ss_password', {
+      describe: 'Specify the key for the encryption of ss',
+    })
+    .option('ss_method', {
+      describe: 'Specify the method of the encryption for ss (default: aes-128-cfb)',
+    })
+
     .option('log_path', {
       describe: 'The file path for logging. If not set, will log to the console.',
     })
@@ -175,6 +239,8 @@ export default function main() {
       handler: (argv) => {
         const config = parseConfig(argv)
 
+        checkClientArgs(config)
+        checkAuthList(config)
         checkRequiredConfig(config)
 
         if (config.daemon) {
